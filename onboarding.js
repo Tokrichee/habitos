@@ -44,7 +44,8 @@ VIEWS.onboarding = function renderOnboarding() {
     body = `<div class="ob-emoji">👋</div><h1>Armemos tu app</h1>
       <p class="sub">Unas preguntas rápidas para proponerte hábitos, configurar tus finanzas y tu plan de negocio. Después podés cambiar todo.</p>
       <div class="label">¿Cómo te llamás?</div>
-      <input class="text-input" data-ob="name" placeholder="Tu nombre" maxlength="24" value="${esc(a.name)}" autocomplete="given-name">`;
+      <input class="text-input" data-ob="name" placeholder="Tu nombre" maxlength="24" value="${esc(a.name)}" autocomplete="given-name">
+      ${state.profile.onboarded ? '' : '<button class="btn ghost" data-act="backup-restore" style="margin-top:28px">¿Ya usabas la app? Restaurar con tu código</button>'}`;
   } else if (s === 1) {
     body = `<h1>¿Qué querés mejorar?</h1><p class="sub">Elegí todas las que quieras.</p>
       <div class="options grid">${Object.entries(CATEGORIES).filter(([k]) => k !== 'otro').map(([k, c]) =>

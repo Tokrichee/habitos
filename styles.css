@@ -401,3 +401,12 @@ body.no-tabs #view { padding-bottom: calc(var(--safe-b) + 24px); }
   padding-bottom: calc(var(--safe-b) + 12px); background: linear-gradient(transparent, var(--bg) 26px); }
 .ob-actions .btn + .btn { margin-top: 0; }
 .ob-actions .btn.ghost { flex: 0 0 34%; }
+
+/* Recordatorios */
+.row-gap { display: flex; align-items: center; gap: 10px; }
+.time-input { background: var(--panel2); border: 0; border-radius: 9px; padding: 6px 8px; font-size: 16px; color: var(--text); }
+.toggle { width: 50px; height: 30px; border-radius: 15px; background: var(--panel2); position: relative; flex: none; transition: background .2s; }
+.toggle i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.toggle.on { background: var(--green); }
+.toggle.on i { transform: translateX(20px); }
+.code-box { background: var(--panel2); border-radius: 14px; padding: 16px; margin: 16px 0; font-family: ui-monospace, Menlo, monospace; font-size: 15px; word-break: break-all; text-align: center; -webkit-user-select: all; user-select: all; }

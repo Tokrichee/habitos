@@ -56,14 +56,19 @@ function migrate(s) {
   s.profile = { name: '', areas: [], energy: 'morning', howMany: 5, stage: null, specialties: [], onboarded: s.habits.length > 0, ...s.profile };
   s.habits = s.habits.map(h => ({
     category: 'otro', type: h.goal > 1 ? 'count' : 'check', unit: h.goal > 1 ? 'veces' : '', step: 1,
-    time: 'any', freq: 'days', perWeek: 3, note: '', libId: null, ...h,
+    time: 'any', freq: 'days', perWeek: 3, note: '', libId: null, reminder: null, ...h,
   }));
   s.finance = { currency: 'ARS', savingsGoal: 20, bizGoal: 0, fixed: [], moves: [], ...s.finance };
   s.biz = { favTips: [], challenges: {}, roadmap: {}, ideas: [], tipShift: 0, ...s.biz };
+  s.push = { enabled: false, summary: { on: true, time: '21:00' }, gastos: { on: false, time: '21:30' }, ...s.push };
   return s;
 }
 
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function save() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  if (typeof schedulePushSync === 'function') schedulePushSync();
+  if (typeof scheduleBackup === 'function') scheduleBackup();
+}
 
 /* ================= Lógica de hábitos ================= */
 const byId = id => state.habits.find(h => h.id === id);
@@ -357,7 +362,7 @@ VIEWS.detail = function renderDetail() {
     <button class="back" data-act="back">‹ ${ui.from === 'stats' ? 'Progreso' : 'Hoy'}</button>
     <div class="detail-head" style="--c:${h.color}">
       <span class="emoji">${esc(h.emoji)}</span>
-      <div><h1>${esc(h.name)}</h1><div class="sub">${[CATEGORIES[h.category].name, freqText(h), goalText(h)].filter(Boolean).join(' · ')}</div></div>
+      <div><h1>${esc(h.name)}</h1><div class="sub">${[CATEGORIES[h.category].name, freqText(h), goalText(h), h.reminder ? `🔔 ${h.reminder}` : ''].filter(Boolean).join(' · ')}</div></div>
       <button class="icon-btn" data-act="edit-habit" data-id="${h.id}">Editar</button>
     </div>
     ${h.note ? `<div class="note">“${esc(h.note)}”</div>` : ''}
@@ -388,12 +393,12 @@ function libraryToDraft(lib) {
     id: null, libId: lib.id, name: lib.name, emoji: lib.emoji, color: CATEGORIES[lib.cat].color,
     category: lib.cat, type: lib.type, goal: lib.goal, unit: lib.unit, step: lib.step,
     time: lib.time === 'energy' ? energy : lib.time, freq: lib.freq, days: [...lib.days],
-    perWeek: lib.perWeek, note: lib.note,
+    perWeek: lib.perWeek, note: lib.note, reminder: null,
   };
 }
 const blankDraft = () => ({
   id: null, libId: null, name: '', emoji: '✨', color: COLORS[6], category: 'otro', type: 'check',
-  goal: 1, unit: '', step: 1, time: 'any', freq: 'days', days: [0, 1, 2, 3, 4, 5, 6], perWeek: 3, note: '',
+  goal: 1, unit: '', step: 1, time: 'any', freq: 'days', days: [0, 1, 2, 3, 4, 5, 6], perWeek: 3, note: '', reminder: null,
 });
 
 function libFreqText(l) {
@@ -462,6 +467,12 @@ function renderForm() {
     <div class="label">Momento del día</div>
     <div class="chips left">${TIME_ORDER.map(tm => `<button class="chip ${d.time === tm ? 'on' : ''}" data-act="f-time" data-v="${tm}">${TIMES[tm].emoji} ${TIMES[tm].name}</button>`).join('')}</div>
 
+    <div class="label">Recordatorio</div>
+    ${seg([['off', 'Sin aviso'], ['on', '🔔 Avisarme']], d.reminder ? 'on' : 'off', 'f-rem')}
+    ${d.reminder ? `<div class="form-row" style="margin-top:10px"><input class="text-input" type="time" data-bind="reminder" value="${esc(d.reminder)}" style="max-width:150px">
+      <div class="hint" style="margin:0">${d.freq === 'weekly' ? 'Todos los días a esta hora' : 'Los días del hábito a esta hora'}, si todavía no lo hiciste.</div></div>
+      ${typeof state.push === 'object' && !state.push.enabled ? '<div class="hint">Para que lleguen, activá las notificaciones en Ajustes.</div>' : ''}` : ''}
+
     <div class="label">Área</div>
     <div class="chips left">${Object.entries(CATEGORIES).map(([v, c]) => `<button class="chip ${d.category === v ? 'on' : ''}" data-act="f-cat" data-v="${v}">${c.emoji} ${c.name}</button>`).join('')}</div>
 
@@ -497,6 +508,7 @@ function saveDraft() {
     goal: draft.type === 'count' ? draft.goal : 1, unit: draft.type === 'count' ? (draft.unit || '').trim() : '',
     step: draft.type === 'count' ? draft.step : 1, time: draft.time, freq: draft.freq,
     days: [...draft.days].sort(), perWeek: draft.perWeek, note: (draft.note || '').trim(), libId: draft.libId,
+    reminder: draft.reminder || null,
   };
   if (draft.id) Object.assign(byId(draft.id), fields);
   else state.habits.push(newHabit(fields));
@@ -531,12 +543,8 @@ VIEWS.ajustes = function renderAjustes() {
       <li>Tocá el botón <b>Compartir</b> (cuadrado con flecha).</li>
       <li>Elegí <b>Agregar a pantalla de inicio</b>.</li>
     </ol></div>`}
-    <div class="section-title">Copia de seguridad</div>
-    <div class="list">
-      <button data-act="export">⬆️ Exportar datos<span class="right">.json</span></button>
-      <button data-act="import">⬇️ Importar copia</button>
-    </div>
-    <div class="hint">Todo se guarda solo en este teléfono: hábitos, finanzas e ideas. Exportá una copia de vez en cuando.</div>
+    ${typeof pushSettingsHTML === 'function' ? pushSettingsHTML() : ''}
+    ${typeof backupSettingsHTML === 'function' ? backupSettingsHTML() : ''}
     ${archived.length ? `
     <div class="section-title">Hábitos archivados</div>
     <div class="list">${archived.map(h => `<button data-act="unarchive" data-id="${h.id}">${esc(h.emoji)} ${esc(h.name)}<span class="right">Restaurar</span></button>`).join('')}</div>` : ''}
@@ -636,6 +644,10 @@ Object.assign(actions, {
   'f-type': el => { draft.type = el.dataset.v; if (draft.type === 'count' && draft.goal < 2) { draft.goal = 5; draft.unit = draft.unit || 'veces'; } refreshSheet(); },
   'f-freq': el => { draft.freq = el.dataset.v; refreshSheet(); },
   'f-time': el => { draft.time = el.dataset.v; refreshSheet(); },
+  'f-rem': el => {
+    draft.reminder = el.dataset.v === 'on' ? (draft.reminder || { morning: '08:00', afternoon: '14:00', evening: '21:00' }[draft.time] || '10:00') : null;
+    refreshSheet();
+  },
   'f-cat': el => { draft.category = el.dataset.v; if (!draft.id && !draft.libId) draft.color = CATEGORIES[draft.category].color; refreshSheet(); },
   'pick-emoji': el => { draft.emoji = el.dataset.v; refreshSheet(); },
   'pick-color': el => { draft.color = el.dataset.v; refreshSheet(); },
